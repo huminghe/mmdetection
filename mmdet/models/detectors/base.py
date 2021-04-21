@@ -153,7 +153,7 @@ class BaseDetector(BaseModule, metaclass=ABCMeta):
             assert 'proposals' not in kwargs
             return self.aug_test(imgs, img_metas, **kwargs)
 
-    @auto_fp16(apply_to=('img', ))
+    @auto_fp16(apply_to=('img',))
     def forward(self, img, img_metas, return_loss=True, **kwargs):
         """Calls either :func:`forward_train` or :func:`forward_test` depending
         on whether ``return_loss`` is ``True``.
@@ -280,7 +280,8 @@ class BaseDetector(BaseModule, metaclass=ABCMeta):
                     win_name='',
                     show=False,
                     wait_time=0,
-                    out_file=None):
+                    out_file=None,
+                    visual_label_threshold=-1):
         """Draw `result` over `img`.
 
         Args:
@@ -350,7 +351,8 @@ class BaseDetector(BaseModule, metaclass=ABCMeta):
             win_name=win_name,
             show=show,
             wait_time=wait_time,
-            out_file=out_file)
+            out_file=out_file,
+            visual_label_threshold=visual_label_threshold)
 
         if not (show or out_file):
             return img
@@ -358,3 +360,27 @@ class BaseDetector(BaseModule, metaclass=ABCMeta):
     def onnx_export(self, img, img_metas):
         raise NotImplementedError(f'{self.__class__.__name__} does '
                                   f'not support ONNX EXPORT')
+
+    def get_labels(self, result, score_thr=0.3):
+        if isinstance(result, tuple):
+            bbox_result, segm_result = result
+            if isinstance(segm_result, tuple):
+                segm_result = segm_result[0]  # ms rcnn
+        else:
+            bbox_result, segm_result = result, None
+        bboxes = np.vstack(bbox_result)
+        labels = [
+            np.full(bbox.shape[0], i, dtype=np.int32)
+            for i, bbox in enumerate(bbox_result)
+        ]
+        labels = np.concatenate(labels)
+        scores = []
+        if score_thr > 0:
+            assert bboxes.shape[1] == 5
+            scores = bboxes[:, -1]
+            inds = scores > score_thr
+            bboxes = bboxes[inds, :]
+            labels = labels[inds]
+            scores = scores[inds]
+
+        return labels, scores

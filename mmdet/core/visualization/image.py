@@ -217,7 +217,8 @@ def imshow_det_bboxes(img,
                       win_name='',
                       show=True,
                       wait_time=0,
-                      out_file=None):
+                      out_file=None,
+                      visual_label_threshold=-1):
     """Draw bboxes and class labels (with scores) on an image.
 
     Args:
@@ -290,61 +291,38 @@ def imshow_det_bboxes(img,
     ax = plt.gca()
     ax.axis('off')
 
-    max_label = int(max(labels) if len(labels) > 0 else 0)
-    text_palette = palette_val(get_palette(text_color, max_label + 1))
-    text_colors = [text_palette[label] for label in labels]
-
-    num_bboxes = 0
-    if bboxes is not None:
-        num_bboxes = bboxes.shape[0]
-        bbox_palette = palette_val(get_palette(bbox_color, max_label + 1))
-        colors = [bbox_palette[label] for label in labels[:num_bboxes]]
-        draw_bboxes(ax, bboxes, colors, alpha=0.8, thickness=thickness)
-
-        horizontal_alignment = 'left'
-        positions = bboxes[:, :2].astype(np.int32) + thickness
-        areas = (bboxes[:, 3] - bboxes[:, 1]) * (bboxes[:, 2] - bboxes[:, 0])
-        scales = _get_adaptive_scales(areas)
-        scores = bboxes[:, 4] if bboxes.shape[1] == 5 else None
-        draw_labels(
-            ax,
-            labels[:num_bboxes],
-            positions,
-            scores=scores,
-            class_names=class_names,
-            color=text_colors,
-            font_size=font_size,
-            scales=scales,
-            horizontal_alignment=horizontal_alignment)
-
-    if segms is not None:
-        mask_palette = get_palette(mask_color, max_label + 1)
-        colors = [mask_palette[label] for label in labels]
-        colors = np.array(colors, dtype=np.uint8)
-        draw_masks(ax, img, segms, colors, with_edge=True)
-
-        if num_bboxes < segms.shape[0]:
-            segms = segms[num_bboxes:]
-            horizontal_alignment = 'center'
-            areas = []
-            positions = []
-            for mask in segms:
-                _, _, stats, centroids = cv2.connectedComponentsWithStats(
-                    mask.astype(np.uint8), connectivity=8)
-                largest_id = np.argmax(stats[1:, -1]) + 1
-                positions.append(centroids[largest_id])
-                areas.append(stats[largest_id, -1])
-            areas = np.stack(areas, axis=0)
-            scales = _get_adaptive_scales(areas)
-            draw_labels(
-                ax,
-                labels[num_bboxes:],
-                positions,
-                class_names=class_names,
-                color=text_colors,
-                font_size=font_size,
-                scales=scales,
-                horizontal_alignment=horizontal_alignment)
+    polygons = []
+    color = []
+    for i, (bbox, label) in enumerate(zip(bboxes, labels)):
+        if visual_label_threshold < 0 or label <= visual_label_threshold:
+            bbox_int = bbox.astype(np.int32)
+            poly = [[bbox_int[0], bbox_int[1]], [bbox_int[0], bbox_int[3]],
+                    [bbox_int[2], bbox_int[3]], [bbox_int[2], bbox_int[1]]]
+            np_poly = np.array(poly).reshape((4, 2))
+            polygons.append(Polygon(np_poly))
+            color.append(bbox_color)
+            label_text = class_names[
+                label] if class_names is not None else f'class {label}'
+            if len(bbox) > 4:
+                label_text += f'|{bbox[-1]:.02f}'
+            ax.text(
+                bbox_int[0],
+                bbox_int[1],
+                f'{label_text}',
+                bbox={
+                    'facecolor': 'black',
+                    'alpha': 0.8,
+                    'pad': 0.7,
+                    'edgecolor': 'none'
+                },
+                color=text_color,
+                fontsize=font_size,
+                verticalalignment='top',
+                horizontalalignment='left')
+            if segms is not None:
+                color_mask = mask_colors[labels[i]]
+                mask = segms[i].astype(bool)
+                img[mask] = img[mask] * 0.5 + color_mask * 0.5
 
     plt.imshow(img)
 
