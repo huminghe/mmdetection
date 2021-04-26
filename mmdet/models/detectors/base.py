@@ -281,7 +281,8 @@ class BaseDetector(BaseModule, metaclass=ABCMeta):
                     show=False,
                     wait_time=0,
                     out_file=None,
-                    visual_label_threshold=-1):
+                    visual_label_threshold=-1,
+                    visual_label_offset=0):
         """Draw `result` over `img`.
 
         Args:
@@ -306,6 +307,8 @@ class BaseDetector(BaseModule, metaclass=ABCMeta):
                 Default: False.
             out_file (str or None): The filename to write the image.
                 Default: None.
+            visual_label_threshold(int, optional): Bbox showed label limit.
+            visual_label_offset(int, optional): Bbox showed label offset.
 
         Returns:
             img (Tensor): Only if not `show` or `out_file`
@@ -352,7 +355,8 @@ class BaseDetector(BaseModule, metaclass=ABCMeta):
             show=show,
             wait_time=wait_time,
             out_file=out_file,
-            visual_label_threshold=visual_label_threshold)
+            visual_label_threshold=visual_label_threshold,
+            visual_label_offset=visual_label_offset)
 
         if not (show or out_file):
             return img
